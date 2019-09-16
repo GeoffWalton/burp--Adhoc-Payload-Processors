@@ -124,6 +124,22 @@ class BTextArea < AbstractBurpUIElement
   end
 end
 
+java_import 'burp.ITextEditor'
+class BTextEditor < AbstractBurpUIElement
+  def initialize(parent, callbacks, positionX, positionY, width, height)
+    @textArea = callbacks.createTextEditor
+    super parent, JScrollPane.new(@textArea.getComponent), positionX, positionY, width, height
+  end
+
+  def setText(text)
+    @textArea.setText text.bytes
+  end
+
+  def getText
+    @textArea.getText.map {|b| b.chr}.join
+  end
+end
+
 #########################################################################################
 #Begin Burp Extension
 #########################################################################################
@@ -233,13 +249,13 @@ def userProcessPayload(currentPayload, originalPayload, baseValue)
 end
 HERE
 
-  def buildUI
+  def buildUI(callbacks)
     BHorizSeparator.new self, 0, 7, 250
     BLabel.new self, 250, 2, 300, 0, 'Payload Processor', :center
     BHorizSeparator.new self, 550, 17, 250
     BLabel.new self,2, 22, 0,0,  'Define the body of the ruby function userProcessPayload below.  The value this function yields will be provided to intruder.'
     BLabel.new self,2, 41, 0,0,  'You may define additional functions or require external files as well.'
-    @txtArea = BTextArea.new( self, 2, 53,800,600)
+    @txtArea = BTextEditor.new( self, callbacks, 2, 53,800,600)
     @txtArea.setText(SAMPLEBODY)
     BLabel.new self, 2,687, 0,0, 'Name for payload processor:'
     @txtName = BTextField.new(self, 160, 685, 450, 12, "NewPayloadProcessor#{rand(5000).to_s}")
@@ -253,7 +269,7 @@ HERE
   end
 
   def saveOnClick
-    JOptionPane.showMessageDialog(nil, "External files and other resources, 'requires' etc are not saved!\nYou will need to ensure these are present for processors that depend on them.")
+    JOptionPane.showMessageDialog(self, "External files and other resources, 'requires' etc are not saved!\nYou will need to ensure these are present for processors that depend on them.")
     @extension.saveExtensionState
   end
 
@@ -275,7 +291,7 @@ HERE
       @extension.create(@txtName.getText, @txtArea.getText)
       @txtName.setText "NewPayloadProcessor#{rand(5000).to_s}"
     else
-      JOptionPane.showMessageDialog(nil, 'Name Conflict Please Choose another name.')
+      JOptionPane.showMessageDialog(self, 'Name Conflict Please Choose another name.')
     end
     updateRemoveList
   end
@@ -307,7 +323,7 @@ class BurpExtender
     callbacks.addSuiteTab @extensionInterface
     @payloadprocessorfactory.callbacks = callbacks
     @payloadprocessorfactory.loadExtensionState
-    @extensionInterface.buildUI
+    @extensionInterface.buildUI(callbacks)
   end
 
 end
