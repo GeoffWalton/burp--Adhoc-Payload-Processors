@@ -2,6 +2,7 @@
 Generate payload processors on the fly - without having to create individual extensions.
 
 Name: Adhoc Payload Processing
+
 Description:
 Creates a new suite tab “Adhoc Payload Processing” that allows users to quickly define new payload processors with a single ruby function with a signature similar to the Burp Extension API using Ruby strings. All the boiler plate of registering extensions is handled automatically. The tool allows for creating, removing, and saving your payload processors within Burp suite.
 
