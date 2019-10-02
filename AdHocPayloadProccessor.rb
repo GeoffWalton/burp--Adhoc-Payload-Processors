@@ -4,17 +4,29 @@ java_import 'burp.IExtensionHelpers'
 java_import 'javax.swing.JOptionPane'
 java_import 'burp.ITab'
 java_import 'javax.swing.JPanel'
-class AbstractBrupExtensionUI < JPanel
+java_import 'javax.swing.JScrollPane'
+java_import 'java.awt.Dimension'
+java_import 'java.awt.Rectangle'
+
+class AbstractBrupExtensionUI < JScrollPane
   include ITab
 
   def initialize(extension)
+    @panel = JPanel.new
+    #@panel.setPreferredSize(Dimension.new(1024,768))
+    @panel.setLayout nil
+    super(@panel)
     @extension = extension
-    super()
-    self.setLayout nil
   end
 
   def extensionName
     @extension.extensionName
+  end
+
+  def add(component)
+    bounds = component.getBounds
+    updateSize(bounds.getX + bounds.getWidth, bounds.getY + bounds.getHeight)
+    @panel.add component
   end
 
   alias_method :getTabCaption, :extensionName
@@ -22,6 +34,15 @@ class AbstractBrupExtensionUI < JPanel
   def getUiComponent
     self
   end
+
+  private
+  #Don't set the size smaller than existing widget positions
+  def updateSize(x,y)
+    x = (@panel.getWidth() > x) ? @panel.getWidth : x
+    y = (@panel.getHeight() > y) ? @panel.getHeight : y
+    @panel.setPreferredSize(Dimension.new(x,y))
+  end
+
 end
 
 java_import('java.awt.Insets')
@@ -80,8 +101,8 @@ class BHorizSeparator < AbstractBurpUIElement
 end
 
 class BVertSeparator < AbstractBurpUIElement
-  def initialize(parent, positionX, positionY, width)
-    super parent, JSeparator.new(0), positionX, positionY, width, 1
+  def initialize(parent, positionX, positionY, height)
+    super parent, JSeparator.new(1), positionX, positionY, 1, height
   end
 end
 
@@ -108,7 +129,6 @@ class BComboBox < AbstractBurpUIElement
 end
 
 java_import 'javax.swing.JTextArea'
-java_import 'javax.swing.JScrollPane'
 class BTextArea < AbstractBurpUIElement
   def initialize(parent, positionX, positionY, width, height)
     @textArea = JTextArea.new
@@ -212,12 +232,12 @@ class PayloadProcessorFactory
     processors = @callbacks.getIntruderPayloadProcessors
     processors.each do |processor|
       if processor.getProcessorName() == processorName
-      @callbacks.removeIntruderPayloadProcessor(processor)
-      processor = nil
+        @callbacks.removeIntruderPayloadProcessor(processor)
+        processor = nil
       end
     end
   rescue => e
-    puts "Failed to remove payload Processor: #{e.message}"
+    raise RuntimeError, "Failed to remove payload Processor: #{e.message}"
   end
 
   def create(name, body)
@@ -225,7 +245,14 @@ class PayloadProcessorFactory
     anon.originalText = body
     callbacks.registerIntruderPayloadProcessor anon
   rescue => e
-    puts "Unable to create payload processor #{name}: #{e.message}"
+    raise ScriptError, "Unable to create payload processor #{name}: #{e.message}"
+  end
+
+  def test(name, body, currentPayload, originalPayload, baseValue)
+    anon = klass(name, body).new(name, @callbacks.getHelpers)
+    return anon.userProcessPayload(currentPayload, originalPayload, baseValue)
+  rescue => e
+    return "#{e.message}: #{e.backtrace.join'\n'}"
   end
 
   def klass(name, body)
@@ -250,22 +277,40 @@ end
 HERE
 
   def buildUI(callbacks)
-    BHorizSeparator.new self, 0, 7, 250
-    BLabel.new self, 250, 2, 300, 0, 'Payload Processor', :center
-    BHorizSeparator.new self, 550, 17, 250
+    BHorizSeparator.new self, 0, 14, 1024
+    BLabel.new self, 230, 2, 300, 0, 'Define Payload Processor', :center
+    BLabel.new self, 790, 2, 50, 0, 'Test Processor', :center
+    BVertSeparator.new self, 702, 20, 700
     BLabel.new self,2, 22, 0,0,  'Define the body of the ruby function userProcessPayload below.  The value this function yields will be provided to intruder.'
     BLabel.new self,2, 41, 0,0,  'You may define additional functions or require external files as well.'
-    @txtArea = BTextEditor.new( self, callbacks, 2, 53,800,600)
+    @txtArea = BTextEditor.new( self, callbacks, 2, 53,700,600)
     @txtArea.setText(SAMPLEBODY)
-    BLabel.new self, 2,687, 0,0, 'Name for payload processor:'
-    @txtName = BTextField.new(self, 160, 685, 450, 12, "NewPayloadProcessor#{rand(5000).to_s}")
-    BButton.new( self, 635, 685, 0,0, 'Create Payload Processor') { |evt| createOnClick }
-    @cmbProcs = BComboBox.new(self, 2, 715, 450, 0) { |evt| onCmbChange }
+    BLabel.new self, 2,655, 0,0, 'Name for payload processor:'
+    @txtName = BTextField.new(self, 160, 655, 350, 12, "NewPayloadProcessor#{rand(5000).to_s}")
+    BButton.new( self, 535, 655, 0,0, 'Create Payload Processor') { |evt| createOnClick }
+    BHorizSeparator.new self, 0,685, 700
+    @cmbProcs = BComboBox.new(self, 2, 690, 350, 0) { |evt| onCmbChange }
     @cmbChanges = true
     updateRemoveList
-    BButton.new(self, 462, 715,0,0, 'Remove Processor') {|evt| removeOnClick }
-    BButton.new(self,635,715,0,0, 'Restore Template') {|evt| templateOnClick }
-    BButton.new(self, 2, 738, 0, 0, 'Save Extension State') {|evt| saveOnClick }
+    BButton.new(self, 362, 690,0,0, 'Remove Processor') {|evt| removeOnClick }
+    BButton.new(self,535,690,0,0, 'Restore Template') {|evt| templateOnClick }
+    BButton.new(self, 2, 715, 0, 0, 'Save Extension State') {|evt| saveOnClick }
+    BLabel.new self, 705,22,290, 0, "Test the current process at the left."
+    BLabel.new self, 705,41,290 ,0, "Current Payload Test Value:"
+    @txtCurrentValue = BTextField.new(self, 705,53,290,0, "test")
+    BLabel.new self, 705,85,290 ,0, "Original Payload Test Value:"
+    @txtOriginalValue = BTextField.new(self, 705,97,290,0, "test")
+    BLabel.new self, 705,123,290 ,0, "Base Test Value:"
+    @txtBaseValue = BTextField.new(self, 705,135,290,0, "test")
+    BButton.new(self,705,170,290,0, "Execute") { |evt| executeOnClick }
+    @txtResult = BTextField.new(self, 705, 200,290,0,"")
+    @txtResult.setEditable(false)
+  end
+
+  def executeOnClick
+    @txtResult.setText(@extension.test(@txtName.getText, @txtArea.getText,  @txtCurrentValue.getText, @txtOriginalValue.getText, @txtBaseValue.getText))
+  rescue RuntimeError,ScriptError => e
+    JOptionPane.showMessageDialog(self, e.message, 'Error', 0)
   end
 
   def saveOnClick
@@ -294,6 +339,8 @@ HERE
       JOptionPane.showMessageDialog(self, 'Name Conflict Please Choose another name.')
     end
     updateRemoveList
+  rescue ScriptError => e
+    JOptionPane.showMessageDialog(self, e.message, 'Error', 0)
   end
 
   def templateOnClick
@@ -303,6 +350,8 @@ HERE
   def removeOnClick
     @extension.destroy(@cmbProcs.getSelectedItem)
     updateRemoveList
+  rescue RuntimeError => e
+    JOptionPane.showMessageDialog(self, e.message, 'Error', 0)
   end
 
 end
