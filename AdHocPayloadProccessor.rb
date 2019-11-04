@@ -197,6 +197,7 @@ class PayloadProcessorFactory
       @helpers.stringToBytes(userProcessPayload(currentPayload, originalPayload, baseValue))
     rescue RuntimeError,ArgumentError => e
       puts e.message + ':' + 'for ' + currentPayload + ' / ' + originalPayload + ' / ' + baseValue
+      "ERROR"
     end
 
     def userProcessPayload(currentPayload, originalPayload, baseValue)
